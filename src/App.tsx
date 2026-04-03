@@ -52,7 +52,14 @@ async function requestJson<T>(input: RequestInfo, init?: RequestInit) {
     throw new Error(errorText || 'Request failed')
   }
 
-  return (await response.json()) as ApiResponse<T>
+  const json = (await response.json()) as ApiResponse<T>
+  console.log('[KiraPay UI] API response', {
+    input: typeof input === 'string' ? input : input.url,
+    method: init?.method ?? 'GET',
+    response: json,
+  })
+
+  return json
 }
 
 function buildStatusMeta(session: Session) {
@@ -179,6 +186,22 @@ function App() {
 
     return () => window.clearInterval(intervalId)
   }, [activeSession])
+
+  useEffect(() => {
+    if (!activeSession) {
+      return
+    }
+
+    console.log('[KiraPay UI] Active session updated', activeSession)
+  }, [activeSession])
+
+  useEffect(() => {
+    if (!returnSession) {
+      return
+    }
+
+    console.log('[KiraPay UI] Returned session updated', returnSession)
+  }, [returnSession])
 
   const activeStatusMeta = useMemo(() => (activeSession ? buildStatusMeta(activeSession) : null), [activeSession])
   const returnStatusMeta = useMemo(() => (returnSession ? buildStatusMeta(returnSession) : null), [returnSession])

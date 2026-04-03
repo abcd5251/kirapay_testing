@@ -26,6 +26,7 @@ type Plan = {
   accent: string
   description: string
   features: string[]
+  fixedCheckoutUrl?: string
 }
 
 type Session = {
@@ -67,6 +68,7 @@ const plans: Plan[] = [
     accent: 'Popular',
     description: 'Higher volume credits for active builders and internal tools.',
     features: ['Better effective rate', 'Ideal for production usage', 'Priority manual confirmation'],
+    fixedCheckoutUrl: 'https://checkout.kira-pay.com/9l3kk2slre',
   },
   {
     id: 'scale',
@@ -89,6 +91,10 @@ const createHeaders = () => ({
   'Content-Type': 'application/json',
   'x-api-key': merchantApiKey,
 })
+
+const logKiraPay = (label: string, payload: unknown) => {
+  console.log(`[KiraPay] ${label}`, payload)
+}
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -405,6 +411,37 @@ app.post('/api/payments/session', async (request, response) => {
   const redirectUrl = createRedirectUrl(sessionId)
   const now = new Date().toISOString()
 
+  if (plan.fixedCheckoutUrl) {
+    const session: Session = {
+      id: sessionId,
+      plan,
+      checkoutUrl: plan.fixedCheckoutUrl,
+      qrCodeValue: plan.fixedCheckoutUrl,
+      redirectUrl,
+      status: 'pending',
+      providerReady: true,
+      clientReference,
+      customOrderId,
+      twitterId: normalizedTwitterId,
+      providerPrice: null,
+      lastWebhookEvent: null,
+      lastWebhookStatus: null,
+      lastWebhookAt: null,
+      createdAt: now,
+      updatedAt: now,
+    }
+
+    sessions.set(sessionId, session)
+    logKiraPay('Using fixed checkout URL session', session)
+
+    response.json({
+      message: 'success',
+      code: 200,
+      data: session,
+    })
+    return
+  }
+
   if (!merchantApiKey) {
     response.status(500).json({
       message: 'KiraPay API key is not configured',
@@ -447,6 +484,16 @@ app.post('/api/payments/session', async (request, response) => {
       }
     | null
 
+  logKiraPay('Create payment link response', {
+    ok: providerResponse.ok,
+    status: providerResponse.status,
+    planId: plan.id,
+    twitterId: normalizedTwitterId,
+    customOrderId,
+    redirectUrl,
+    providerJson,
+  })
+
   if (!providerResponse.ok || !providerJson || !('data' in providerJson) || !providerJson.data?.url) {
     response.status(providerResponse.status || 502).json({
       message:
@@ -478,6 +525,7 @@ app.post('/api/payments/session', async (request, response) => {
   }
 
   sessions.set(sessionId, session)
+  logKiraPay('Created dynamic checkout session', session)
 
   response.json({
     message: 'success',
@@ -549,6 +597,7 @@ app.post('/api/webhooks/kirapay', (request, response) => {
   }
 
   const payload = request.body as unknown
+  logKiraPay('Webhook payload received', payload)
   const { status, rawStatus } = normalizeWebhookStatus(payload)
   const eventName = getWebhookEventName(payload)
   const { session, matchedBy } = findSessionFromWebhook(payload)
@@ -577,6 +626,14 @@ app.post('/api/webhooks/kirapay', (request, response) => {
   }
 
   sessions.set(updatedSession.id, updatedSession)
+  logKiraPay('Webhook updated session', {
+    sessionId: updatedSession.id,
+    status: updatedSession.status,
+    eventName,
+    rawStatus,
+    matchedBy,
+    session: updatedSession,
+  })
 
   response.json({
     message: 'success',
