@@ -1,175 +1,280 @@
-# KiraPay Top Up Demo
+# RESTful API Boilerplate
 
-這個專案是一個 React + Vite 前端，搭配 Express 後端的 KiraPay Top Up 示範。
+A boilerplate/starter project for quickly building RESTful APIs using [Hono](https://honojs.dev/), and Drizzle. Inspired by
+[node-express-boilerplate](https://github.com/hagopj13/node-express-boilerplate) by hagopj13.
 
-功能包含：
+## Table of Contents
 
-- 三個 Top Up 方案卡片
-- 輸入 Twitter ID 後，由後端建立 KiraPay payment link
-- 使用 Base 鏈 USDC 建立單次付款連結
-- 顯示 QRCode、Checkout URL 與 redirect URL
-- 付款完成後導回首頁並顯示付款成功 / 付款失敗結果
-- 由 KiraPay webhook 自動更新付款狀態
-- KIRAPAY_API_KEY 僅放在後端使用
+- [RESTful API Boilerplate](#restful-api-boilerplate)
+  - [Table of Contents](#table-of-contents)
+  - [Features](#features)
+  - [Commands](#commands)
+  - [Error Handling](#error-handling)
+  - [Validation](#validation)
+  - [Authentication](#authentication)
+  - [Emails](#emails)
+  - [Authorisation](#authorisation)
+  - [Rate Limiting](#rate-limiting)
+  - [Contributing](#contributing)
+  - [Inspirations](#inspirations)
 
-## 環境需求
+## Features
 
-- Node.js 20+
-- npm 10+
+- **SQL database**: Drizzle
+- **Authentication and authorization**: using JWT
+- **Validation**: request data validation using [Zod](https://github.com/colinhacks/zod)
+- **Logging**: using [Sentry](https://sentry.io/)
+- **Testing**: unit and integration tests using [Vitest](https://vitest.dev/)
+- **Error handling**: centralised error handling mechanism provided by [Hono](https://honojs.dev/)
+- **Git hooks**: with [Husky](https://github.com/typicode/husky)
+- **Linting**: with [ESLint](https://eslint.org) and [Prettier](https://prettier.io)
+- **Emails**: with [Amazon SES](https://aws.amazon.com/ses/)
+- **Oauth**: Support for Discord, Github, Spotify, Google, Apple and Facebook. Support coming for
+  Instagram and Twitter
+- **Rate Limiting**: using Cloudflare durable objects you can rate limit endpoints usin the sliding
+  window algorithm
 
-## 環境變數
+## Setup
 
-請在專案根目錄建立 `.env`：
-
-```env
-KIRAPAY_API_KEY=你的_kirapay_api_key
-KIRAPAY_WEBHOOK_SECRET=自訂_webhook_secret
-APP_BASE_URL=http://localhost:5173
-KIRAPAY_TOKEN_OUT_CHAIN_ID=8453
-KIRAPAY_TOKEN_OUT_ADDRESS=0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913
-KIRAPAY_RECEIVER_ADDRESS=0x8356D265646a397b2Dacf0e05A4973E7676597f4
-KIRAPAY_FIAT_CURRENCY=USD
-PORT=8787
-```
-
-`APP_BASE_URL` 是 KiraPay 完成付款後要導回的前端頁面。
-`KIRAPAY_TOKEN_OUT_CHAIN_ID=8453` 代表 Base 鏈。
-`KIRAPAY_TOKEN_OUT_ADDRESS` 預設為 Base USDC 合約地址。
-`KIRAPAY_RECEIVER_ADDRESS` 是你要收款的地址。
-`KIRAPAY_FIAT_CURRENCY=USD` 會讓 `originalPrice` 依各方案金額建立對應的 USDC 價格。
-`KIRAPAY_WEBHOOK_SECRET` 可以不填；如果有設定，後端會驗證 webhook header 或 Bearer Token。
-
-## 安裝
+Copy .env.example to .env and fill in the values
+You will need it for running the migration.
 
 ```bash
-npm install
+cp .env.example .env
 ```
 
-## 開發模式
+Copy .env.test.example to .env.test and fill in the values.
+You will need it for running the tests.
+
+```bash
+cp .env.test.example .env.test
+```
+
+Start Postgres locally
+You will need it for running the tests.
+
+```bash
+docker run --name=postgres --rm -itd -p 5432:5432 \
+  -e POSTGRES_PASSWORD=password \
+  -e POSTGRES_DB=test \
+  postgres:latest \
+  postgres -c 'max_connections=1000'
+```
+
+Generate Drizzle Queries
+
+```bash
+npm run generate
+```
+
+Migrate
+
+```bash
+npm run migrate
+```
+
+Run a specific test
+
+```bash
+bunx vitest run tests/integration/index.test.ts
+```
+
+## Commands
+
+Running locally:
 
 ```bash
 npm run dev
 ```
 
-啟動後：
+Testing:
 
-- 前端：http://localhost:5173
-- 後端：http://localhost:8787
-
-`npm run dev` 會同時啟動：
-
-- Vite 前端開發伺服器
-- `server/` 內的 Express 後端
-
-## 可用指令
+TODO: when do npm run tests, they will fail
 
 ```bash
-npm run dev
+# run all tests
+npm run tests
+
+# run test coverage
+npm run tests:coverage
+```
+
+Linting:
+
+```bash
+# run ESLint
 npm run lint
-npm run typecheck
-npm run build
+
+# fix ESLint errors
+npm run lint:fix
+
+# run prettier
+npm run prettier
+
+# fix prettier errors
+npm run prettier:fix
 ```
 
-## 專案結構
+## Error Handling
 
-```text
-.
-├── src/
-│   ├── App.tsx
-│   ├── main.tsx
-│   └── styles.css
-├── server/
-│   └── index.ts
-├── .env
-└── package.json
+The app has a centralized error handling mechanism provided by [Hono](https://honojs.dev/).
+
+```javascript
+app.onError(errorHandler)
 ```
 
-## 付款流程
+All errors will be caught by the errorHandler which converts the error to an ApiError and formats
+it in a JSON response. Any errors that aren't intentionally thrown, e.g. 500 errors, are logged to
+Sentry.
 
-1. 前端載入方案列表
-2. 使用者輸入 Twitter ID
-3. 使用者點擊 Top Up 按鈕
-4. 前端呼叫後端建立付款 session
-5. 後端讀取 `.env` 內的 `KIRAPAY_API_KEY`，呼叫 `POST https://api.kira-pay.com/api/link/generate`
-6. 後端送出 Base 鏈 USDC payment link 參數：
+The error handling middleware sends an error response, which has the following format:
 
 ```json
 {
-  "tokenOut": {
-    "chainId": "8453",
-    "address": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
-  },
-  "receiver": "你的收款地址",
-  "originalPrice": 10,
-  "fiatCurrency": "USD",
-  "name": "@twitter_id",
-  "customOrderId": "builder-<sessionId>",
-  "redirectUrl": "http://localhost:5173/?sessionId=<sessionId>&source=kirapay",
-  "type": "single_use",
-  "isViewAsCrypto": false
+  "code": 404,
+  "message": "Not found"
 }
 ```
 
-7. 前端顯示 KiraPay QRCode 與 Checkout 彈窗
-8. 使用者完成付款後，KiraPay 導回前端頁面
-9. KiraPay 呼叫後端 webhook
-10. 後端更新 session 狀態
-11. 前端輪詢 session 狀態並自動顯示成功 / 失敗結果
+When running in development mode, the error response also contains the error stack.
 
-`name` 會使用使用者輸入的 Twitter ID。
-`customOrderId` 會帶入方案代碼與 sessionId，方便對應訂單與 webhook。
+## Validation
 
-## Webhook 設定
+Request data is validated using [Zod](https://github.com/colinhacks/zod).
 
-本地 webhook endpoint：
+The validation schemas are defined in the `src/validations` directory and are used in the
+controllers by getting either the query or body and then calling the parse on the relevant
+validation function:
 
-```text
-http://localhost:8787/api/webhooks/kirapay
+```javascript
+const getUsers: Handler<{ Bindings: Bindings }> = async (c) => {
+  const config = createConfig(env(c))
+  const queryParse = c.req.query()
+  const query = userValidation.getUsers.parse(queryParse)
+  const filter = { email: query.email }
+  const options = { sortBy: query.sort_by, limit: query.limit, page: query.page }
+  const result = await userService.queryUsers(filter, options)
+  return c.json(result, httpStatus.OK)
+}
 ```
 
-如果要讓 KiraPay 從外部打到本機，需要先把本機後端透過 tunnel 暴露成公開網址，例如：
+## Authentication
 
-```bash
-cloudflared tunnel --url http://localhost:8787
+To require authentication for certain routes, you can use the `auth` middleware.
+
+```javascript
+import { Hono } from 'hono'
+import * as userController from '../controllers/user.controller'
+import { auth } from '../middlewares/auth'
+
+const route = new Hono<{ Bindings: Bindings }>()
+
+route.post('/', auth(), userController.createUser)
+
+export { route }
+
 ```
 
-或：
+These routes require a valid JWT access token in the Authorization request header using the Bearer
+schema. If the request does not contain a valid access token, an Unauthorized (401) error is thrown.
 
-```bash
-ngrok http 8787
-```
+## Emails
 
-然後把公開網址後面的 webhook 路徑填到 KiraPay dashboard：
+Support for Email sending using [Amazon SES](https://aws.amazon.com/ses/). Just call the `sendEmail`
+function in `src/services/email.service.ts`:
 
-```text
-https://你的公開網址/api/webhooks/kirapay
-```
-
-如果 KiraPay dashboard 支援自訂 header 或 Bearer Token，建議同步設定 `KIRAPAY_WEBHOOK_SECRET`。
-
-## 本地模擬 webhook
-
-可以用下面的方式模擬付款成功 webhook：
-
-```bash
-curl -X POST http://localhost:8787/api/webhooks/kirapay \
-  -H 'Content-Type: application/json' \
-  -H 'x-kirapay-webhook-secret: 自訂_webhook_secret' \
-  -d '{
-    "event": "payment.completed",
-    "status": "success",
-    "metadata": {
-      "customOrderId": "builder-請替換成實際sessionId"
+```javascript
+const sendResetPasswordEmail = async (email: string, emailData: EmailData, config: Config) => {
+  const message = {
+    Subject: {
+      Data: 'Reset your password',
+      Charset: 'UTF-8'
+    },
+    Body: {
+      Text: {
+        Charset: 'UTF-8',
+        Data: `
+          Hello ${emailData.name}
+          Please reset your password by clicking the following link:
+          ${emailData.token}
+        `
+      }
     }
-  }'
+  }
+  await sendEmail(email, config.email.sender, message, config.aws)
+}
 ```
 
-如果沒有 secret，可以拿掉 `x-kirapay-webhook-secret` header。
+## Authorisation
 
-## 建置
+The `auth` middleware can also be used to require certain rights/permissions to access a route.
 
-```bash
-npm run build
+```javascript
+import { Hono } from 'hono'
+import * as userController from '../controllers/user.controller'
+import { auth } from '../middlewares/auth'
+
+const route = new Hono<{ Bindings: Bindings }>()
+
+route.post('/', auth('manageUsers'), userController.createUser)
+
+export { route }
 ```
 
-建置完成後，靜態前端檔案會輸出到 `dist/`。
+In the example above, an authenticated user can access this route only if that user has the
+`manageUsers` permission.
+
+The permissions are role-based. You can view the permissions/rights of each role in the
+`src/config/roles.ts` file.
+
+If the user making the request does not have the required permissions to access this route, a
+Forbidden (403) error is thrown.
+
+## Rate Limiting
+
+To apply rate limits for certain routes, you can use the `rateLimit` middleware.
+
+```javascript
+import { Hono } from 'hono'
+import { auth } from '../middlewares/auth'
+import { rateLimit } from '../middlewares/rateLimiter'
+
+export const route = new Hono()
+
+const twoMinutes = 120
+const oneRequest = 1
+
+route.post(
+  '/send-verification-email',
+  auth(),
+  rateLimit(twoMinutes, oneRequest),
+  authController.sendVerificationEmail
+)
+```
+
+This uses Cloudflare durable objects to apply rate limits using the sliding window algorithm. You
+can specify the interval size in seconds and how many requests are allowed per interval.
+
+If the rate limit is hit a `429` will be returned to the client.
+
+These headers are returned with each endpoint that has rate limiting applied:
+
+- `X-RateLimit-Limit` - How many requests are allowed per window
+- `X-RateLimit-Reset` - How many seconds until the current window resets
+- `X-RateLimit-Policy` - Details about the rate limit policy in this format `${limit};w=${interval};comment="Sliding window"`
+- `X-RateLimit-Remaining` - How many requests you can send until you will be rate limited. Please
+  note this doesn't just reset to the limit when the reset period hits. Use it as indicator of your
+  current throughput e.g. if you have 12 requests allowed every 1 second and remaining is 0
+  you are at 100% throughput, but if it is 6 you are 50% throughput. This value constantly changes
+  as the window progresses either increasing or decreasing based on your throughput
+
+The rate limit will be based on IP unless the user is authenticated then it will be based on the
+user ID.
+
+## Contributing
+
+Contributions are more than welcome!
+
+## Inspirations
+
+- [hagopj13/node-express-boilerplate](https://github.com/hagopj13/node-express-boilerplate)

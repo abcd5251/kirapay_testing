@@ -1,21 +1,27 @@
 {
   "compilerOptions": {
-    "target": "ES2022",
-    "useDefineForClassFields": true,
-    "lib": ["DOM", "DOM.Iterable", "ES2022"],
-    "allowJs": false,
-    "skipLibCheck": true,
-    "esModuleInterop": true,
-    "allowSyntheticDefaultImports": true,
-    "strict": true,
-    "forceConsistentCasingInFileNames": true,
-    "module": "ESNext",
-    "moduleResolution": "Bundler",
+    "allowJs": true,
+    "target": "esnext",
+    "lib": ["esnext"],
+    "moduleResolution": "bundler",
     "resolveJsonModule": true,
-    "isolatedModules": true,
+    "inlineSourceMap": true,
+    "module": "esnext",
+    "esModuleInterop": true,
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "strict": true,
+    "noImplicitAny": true,
     "noEmit": true,
-    "jsx": "react-jsx",
-    "types": ["node"]
+    "skipLibCheck": true,
+    "paths": {
+      "@/*": [
+        "./src/*"
+      ]
+    }
   },
-  "include": ["src", "server", "vite.config.ts", "eslint.config.js"]
+  "ts-node": {
+    "transpileOnly": true
+  },
+  "include": ["./src/**/*", "./scripts/**/*", "bindings.d.ts"]
 }
