@@ -1,11 +1,5 @@
 # KiraPay Integration — Implementation Guide
 
-> This guide is written based on direct study of two live KiraPay reference
-> implementations: **Kira Demo Website** (Next.js backend + webhooks) and
-> **Kira POS** (React SPA + client polling). Use it to understand the full
-> KiraPay flow and apply the changes needed in your own codebase.
-
----
 
 ## How KiraPay Works (The Full Picture)
 
